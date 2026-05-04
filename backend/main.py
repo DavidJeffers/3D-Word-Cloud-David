@@ -43,7 +43,7 @@ def fetch_article_text(url: str) -> str:
     return text
 
 
-def extract_keywords(text: str, top_n: int = 60) -> list[WordWeight]:
+def extract_keywords(text: str, top_n: int = 35) -> list[WordWeight]:
     lemmatizer = WordNetLemmatizer()
 
     weak = {"also", "could", "due", "like", "good", "get", "see", "one", "said", "since", "set", "come"}
@@ -88,5 +88,5 @@ def health():
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(body: AnalyzeRequest):
     text = fetch_article_text(str(body.url))
-    keywords = extract_keywords(text, top_n=60)
+    keywords = extract_keywords(text, top_n=35)
     return AnalyzeResponse(topics=keywords)
