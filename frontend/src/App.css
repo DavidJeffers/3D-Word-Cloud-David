@@ -30,9 +30,9 @@ html,
 }
 
 .sidebar {
-  width: 240px;
+  width: 280px;
   background-color: var(--sidebar-bg);
-  padding: 2rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   box-shadow: 2px 0 15px rgba(0, 0, 0, 0.5);
@@ -48,7 +48,7 @@ h1 {
 .subtitle {
   color: var(--text-muted);
   font-size: 0.9rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   line-height: 1.4;
 }
 
@@ -103,13 +103,13 @@ button:disabled {
 }
 
 .samples {
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
 }
 
 .samples p {
   color: var(--text-muted);
   font-size: 0.9rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .samples ul {
@@ -149,4 +149,30 @@ button:disabled {
 
 .text-muted {
   color: var(--text-muted);
+}
+/* get rid of scrollbar */
+.summary-section {
+  margin-top: 0.5rem;
+  border-top: 1px solid #3f3f46;
+  padding-top: 0.5rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.summary-box h3 {
+  font-size: 0.9rem;
+  color: var(--accent);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.summary-box p {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #e4e4e7;
+  margin: 0;
 }

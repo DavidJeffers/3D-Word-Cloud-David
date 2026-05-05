@@ -15,6 +15,8 @@ function App() {
   const [words, setWords] = useState<WordData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const handleAnalyze = async (targetUrl: string) => {
     if (!targetUrl.trim()) return;
@@ -22,26 +24,34 @@ function App() {
     setLoading(true);
     setError(null);
     setWords([]);
+    setSummary(null);
+    setSummaryLoading(true);
 
-    try {
-      const response = await fetch("http://localhost:8000/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: targetUrl }),
-      });
+    fetch("http://localhost:8000/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: targetUrl }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Error: ${res.statusText}`);
+        return res.json();
+      })
+      .then((data) => setWords(data.topics))
+      .catch((err) => setError(err.message || "Failed to analyze URL."))
+      .finally(() => setLoading(false));
 
-      if (!response.ok) {
-        throw new Error(`Error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      setWords(data.topics);
-      console.log(data.topics, "data in app", data.topics.length);
-    } catch (err: any) {
-      setError(err.message || "Failed to analyze URL.");
-    } finally {
-      setLoading(false);
-    }
+    fetch("http://localhost:8000/summary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: targetUrl }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to generate summary");
+        return res.json();
+      })
+      .then((data) => setSummary(data.summary))
+      .catch((err) => console.error("Summary error:", err))
+      .finally(() => setSummaryLoading(false));
   };
 
   return (
@@ -85,6 +95,18 @@ function App() {
               </li>
             ))}
           </ul>
+        </div>
+
+        <div className="summary-section">
+          {summaryLoading && (
+            <p className="text-muted">Generating AI summary...</p>
+          )}
+          {summary && (
+            <div className="summary-box">
+              <h3>Article Summary</h3>
+              <p>{summary}</p>
+            </div>
+          )}
         </div>
       </aside>
 
