@@ -30,6 +30,10 @@ app.add_middleware(
 class AnalyzeRequest(BaseModel):
     url: HttpUrl
 
+class ExplainRequest(BaseModel):
+    url: HttpUrl
+    word: str
+
 class WordWeight(BaseModel):
     word: str
     weight: float
@@ -40,6 +44,8 @@ class AnalyzeResponse(BaseModel):
 class SummaryResponse(BaseModel):
     summary: str
 
+class ExplainResponse(BaseModel):
+    explanation: str
 
 def fetch_article_text(url: str) -> str:
     downloaded = trafilatura.fetch_url(url)
@@ -56,6 +62,20 @@ def fetch_article_text(url: str) -> str:
 def generate_cached_summary(url: str) -> str:
     text = fetch_article_text(url)
     prompt = f"Please provide a short, concise summary (about 3-4 sentences) of the following article:\n\n{text}"
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini API Error: {str(e)}")
+
+@lru_cache(maxsize=500)
+def generate_cached_explanation(url: str, word: str) -> str:
+    text = fetch_article_text(url)
+    prompt = f"Based on the following article, explain how the word '{word}' is relevant or impactful to the overall context of the text. Keep the explanation to 2-3 concise sentences.\n\nArticle Text:\n{text}"
     
     try:
         response = client.models.generate_content(
@@ -118,3 +138,8 @@ def analyze(body: AnalyzeRequest):
 def summarize(body: AnalyzeRequest):
     summary_text = generate_cached_summary(str(body.url))
     return SummaryResponse(summary=summary_text)
+
+@app.post("/explain", response_model=ExplainResponse)
+def explain(body: ExplainRequest):
+    explanation_text = generate_cached_explanation(str(body.url), body.word)
+    return ExplainResponse(explanation=explanation_text)
