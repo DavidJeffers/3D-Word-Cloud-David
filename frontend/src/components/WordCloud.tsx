@@ -1,7 +1,8 @@
 import { useRef, useState, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Text, Billboard } from "@react-three/drei";
+import { Text, Billboard, useCursor } from "@react-three/drei";
 import * as THREE from "three";
+import type { Text as TroikaText } from "troika-three-text";
 
 export interface WordData {
   word: string;
@@ -26,16 +27,17 @@ function Word({
   text: string;
   onClick: () => void;
 }) {
+  const textRef = useRef<TroikaText>(null);
   const [hovered, setHovered] = useState(false);
-  const textRef = useRef<any>(null);
+
+  useCursor(hovered);
+
+  const targetScaleVec = useRef(new THREE.Vector3(1, 1, 1));
 
   useFrame(() => {
     if (textRef.current) {
-      const targetScale = hovered ? 1.4 : 1;
-      textRef.current.scale.lerp(
-        new THREE.Vector3(targetScale, targetScale, targetScale),
-        0.15,
-      );
+      targetScaleVec.current.setScalar(hovered ? 1.4 : 1);
+      textRef.current.scale.lerp(targetScaleVec.current, 0.15);
     }
   });
 
@@ -54,11 +56,9 @@ function Word({
         onPointerOver={(e) => {
           e.stopPropagation();
           setHovered(true);
-          document.body.style.cursor = "pointer";
         }}
         onPointerOut={() => {
           setHovered(false);
-          document.body.style.cursor = "auto";
         }}
       >
         {text}
@@ -67,19 +67,29 @@ function Word({
   );
 }
 
+const hashString = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+  }
+  return hash;
+};
+
 export default function WordCloud({ words, onWordClick }: WordCloudProps) {
   const groupRef = useRef<THREE.Group>(null);
 
   const wordPositions = useMemo(() => {
-    const shuffledWords = [...words].sort(() => Math.random() - 0.5);
-    const count = shuffledWords.length;
+    const sortedWords = [...words].sort(
+      (a, b) => hashString(a.word) - hashString(b.word),
+    );
+    const count = sortedWords.length;
     const radius = 12;
 
-    const weights = shuffledWords.map((w) => w.weight);
+    const weights = sortedWords.map((w) => w.weight);
     const maxWeight = Math.max(...weights);
     const minWeight = Math.min(...weights);
 
-    return shuffledWords.map((wordData, i) => {
+    return sortedWords.map((wordData, i) => {
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
 
@@ -112,9 +122,9 @@ export default function WordCloud({ words, onWordClick }: WordCloudProps) {
 
   return (
     <group ref={groupRef}>
-      {wordPositions.map((item, index) => (
+      {wordPositions.map((item) => (
         <Word
-          key={index}
+          key={item.word}
           position={item.position}
           size={item.size}
           color={item.color}

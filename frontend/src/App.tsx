@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import WordCloud, { type WordData } from "./WordCloud";
+import { useQuery } from "@tanstack/react-query";
+import WordCloud, { type WordData } from "./components/WordCloud";
 import "./App.css";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const SAMPLE_LINKS = {
   "React Wiki": "https://en.wikipedia.org/wiki/React_(software)",
@@ -11,74 +14,69 @@ const SAMPLE_LINKS = {
 };
 
 function App() {
-  const [url, setUrl] = useState("");
-  const [words, setWords] = useState<WordData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [inputUrl, setInputUrl] = useState("");
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
-  const [explanation, setExplanation] = useState<string | null>(null);
-  const [explanationLoading, setExplanationLoading] = useState(false);
+
+  const {
+    data: words = [],
+    isFetching: isAnalyzing,
+    error: analyzeError,
+  } = useQuery({
+    queryKey: ["analyze", activeUrl],
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${API_BASE}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: activeUrl }),
+        signal,
+      });
+      if (!res.ok) throw new Error("Failed to analyze URL.");
+      const data = await res.json();
+      return data.topics as WordData[];
+    },
+    enabled: !!activeUrl,
+    staleTime: Infinity,
+  });
+
+  const { data: summary, isFetching: isSummaryLoading } = useQuery({
+    queryKey: ["summary", activeUrl],
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${API_BASE}/summary`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: activeUrl }),
+        signal,
+      });
+      if (!res.ok) throw new Error("Failed to generate summary");
+      const data = await res.json();
+      return data.summary as string;
+    },
+    enabled: !!activeUrl,
+    staleTime: Infinity,
+  });
+
+  const { data: explanation, isFetching: isExplanationLoading } = useQuery({
+    queryKey: ["explain", activeUrl, selectedWord],
+    queryFn: async ({ signal }) => {
+      const res = await fetch(`${API_BASE}/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: activeUrl, word: selectedWord }),
+        signal,
+      });
+      if (!res.ok) throw new Error("Failed to explain word");
+      const data = await res.json();
+      return data.explanation as string;
+    },
+    enabled: !!activeUrl && !!selectedWord,
+    staleTime: Infinity,
+  });
 
   const handleAnalyze = (targetUrl: string) => {
     if (!targetUrl.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    setWords([]);
-    setSummary(null);
-    setSummaryLoading(true);
+    setActiveUrl(targetUrl);
     setSelectedWord(null);
-    setExplanation(null);
-    setExplanationLoading(false);
-
-    fetch("http://localhost:8000/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: targetUrl }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Error: ${res.statusText}`);
-        return res.json();
-      })
-      .then((data) => setWords(data.topics))
-      .catch((err) => setError(err.message || "Failed to analyze URL."))
-      .finally(() => setLoading(false));
-
-    fetch("http://localhost:8000/summary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: targetUrl }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to generate summary");
-        return res.json();
-      })
-      .then((data) => setSummary(data.summary))
-      .catch((err) => console.error("Summary error:", err))
-      .finally(() => setSummaryLoading(false));
-  };
-
-  const handleWordClick = (word: string) => {
-    if (!url) return;
-
-    setSelectedWord(word);
-    setExplanationLoading(true);
-    setExplanation(null);
-
-    fetch("http://localhost:8000/explain", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url, word }),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to explain word");
-        return res.json();
-      })
-      .then((data) => setExplanation(data.explanation))
-      .catch((err) => console.error("Explanation error:", err))
-      .finally(() => setExplanationLoading(false));
   };
 
   return (
@@ -93,17 +91,20 @@ function App() {
         <div className="input-group">
           <input
             type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={inputUrl}
+            onChange={(e) => setInputUrl(e.target.value)}
             placeholder="https://example.com/article"
-            disabled={loading}
+            disabled={isAnalyzing}
           />
-          <button onClick={() => handleAnalyze(url)} disabled={loading || !url}>
-            {loading ? "Analyzing..." : "Generate"}
+          <button
+            onClick={() => handleAnalyze(inputUrl)}
+            disabled={isAnalyzing || !inputUrl}
+          >
+            {isAnalyzing ? "Analyzing..." : "Generate"}
           </button>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {analyzeError && <div className="error">{analyzeError.message}</div>}
 
         <div className="samples">
           <p>Or try a sample link:</p>
@@ -113,10 +114,10 @@ function App() {
                 <button
                   className="sample-btn"
                   onClick={() => {
-                    setUrl(link);
+                    setInputUrl(link);
                     handleAnalyze(link);
                   }}
-                  disabled={loading}
+                  disabled={isAnalyzing}
                 >
                   {label}
                 </button>
@@ -126,7 +127,7 @@ function App() {
         </div>
 
         <div className="summary-section">
-          {explanationLoading ? (
+          {isExplanationLoading ? (
             <p className="text-muted">
               Analyzing relevance of "{selectedWord}"...
             </p>
@@ -141,15 +142,12 @@ function App() {
                   padding: "0.5rem",
                   textAlign: "center",
                 }}
-                onClick={() => {
-                  setSelectedWord(null);
-                  setExplanation(null);
-                }}
+                onClick={() => setSelectedWord(null)}
               >
                 Back to Article Summary
               </button>
             </div>
-          ) : summaryLoading ? (
+          ) : isSummaryLoading ? (
             <p className="text-muted">Generating AI summary...</p>
           ) : summary ? (
             <div className="summary-box">
@@ -161,28 +159,28 @@ function App() {
       </aside>
 
       <main className="canvas-container">
-        {loading && (
+        {isAnalyzing && (
           <div className="overlay">Extracting text & running NLP...</div>
         )}
 
-        {!loading && words.length === 0 && !error && (
+        {!isAnalyzing && words.length === 0 && !analyzeError && (
           <div className="overlay text-muted">Awaiting input...</div>
         )}
 
-        {words.length > 0 && (
-          <Canvas camera={{ position: [0, 0, 25], fov: 60 }}>
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
+        <Canvas camera={{ position: [0, 0, 25], fov: 60 }}>
+          <ambientLight intensity={0.5} />
+          <pointLight position={[10, 10, 10]} />
 
-            <WordCloud words={words} onWordClick={handleWordClick} />
+          {words.length > 0 && (
+            <WordCloud words={words} onWordClick={setSelectedWord} />
+          )}
 
-            <OrbitControls
-              enablePan={true}
-              enableZoom={true}
-              enableRotate={true}
-            />
-          </Canvas>
-        )}
+          <OrbitControls
+            enablePan={true}
+            enableZoom={true}
+            enableRotate={true}
+          />
+        </Canvas>
       </main>
     </div>
   );
