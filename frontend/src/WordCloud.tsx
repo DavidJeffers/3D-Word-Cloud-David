@@ -10,6 +10,7 @@ export interface WordData {
 
 interface WordCloudProps {
   words: WordData[];
+  onWordClick: (word: string) => void;
 }
 
 function Word({
@@ -17,11 +18,13 @@ function Word({
   size,
   color,
   text,
+  onClick,
 }: {
   position: THREE.Vector3;
   size: number;
   color: string;
   text: string;
+  onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const textRef = useRef<any>(null);
@@ -44,6 +47,10 @@ function Word({
         color={hovered ? "#ffffff" : color}
         anchorX="center"
         anchorY="middle"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
         onPointerOver={(e) => {
           e.stopPropagation();
           setHovered(true);
@@ -60,12 +67,11 @@ function Word({
   );
 }
 
-export default function WordCloud({ words }: WordCloudProps) {
+export default function WordCloud({ words, onWordClick }: WordCloudProps) {
   const groupRef = useRef<THREE.Group>(null);
 
   const wordPositions = useMemo(() => {
     const shuffledWords = [...words].sort(() => Math.random() - 0.5);
-
     const count = shuffledWords.length;
     const radius = 12;
 
@@ -113,6 +119,7 @@ export default function WordCloud({ words }: WordCloudProps) {
           size={item.size}
           color={item.color}
           text={item.word}
+          onClick={() => onWordClick(item.word)}
         />
       ))}
     </group>

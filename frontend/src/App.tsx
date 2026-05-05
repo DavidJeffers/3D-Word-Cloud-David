@@ -17,8 +17,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [explanationLoading, setExplanationLoading] = useState(false);
 
-  const handleAnalyze = async (targetUrl: string) => {
+  const handleAnalyze = (targetUrl: string) => {
     if (!targetUrl.trim()) return;
 
     setLoading(true);
@@ -26,6 +29,9 @@ function App() {
     setWords([]);
     setSummary(null);
     setSummaryLoading(true);
+    setSelectedWord(null);
+    setExplanation(null);
+    setExplanationLoading(false);
 
     fetch("http://localhost:8000/analyze", {
       method: "POST",
@@ -54,12 +60,34 @@ function App() {
       .finally(() => setSummaryLoading(false));
   };
 
+  const handleWordClick = (word: string) => {
+    if (!url) return;
+
+    setSelectedWord(word);
+    setExplanationLoading(true);
+    setExplanation(null);
+
+    fetch("http://localhost:8000/explain", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, word }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to explain word");
+        return res.json();
+      })
+      .then((data) => setExplanation(data.explanation))
+      .catch((err) => console.error("Explanation error:", err))
+      .finally(() => setExplanationLoading(false));
+  };
+
   return (
     <div className="layout">
       <aside className="sidebar">
         <h1>3D Word Cloud</h1>
         <p className="subtitle">
-          Enter an article URL to extract topics and visualize them.
+          Enter an article URL to extract topics and visualize them. Click words
+          to learn more!
         </p>
 
         <div className="input-group">
@@ -98,15 +126,37 @@ function App() {
         </div>
 
         <div className="summary-section">
-          {summaryLoading && (
+          {explanationLoading ? (
+            <p className="text-muted">
+              Analyzing relevance of "{selectedWord}"...
+            </p>
+          ) : explanation ? (
+            <div className="summary-box">
+              <h3>Why "{selectedWord}"?</h3>
+              <p>{explanation}</p>
+              <button
+                className="sample-btn"
+                style={{
+                  marginTop: "1rem",
+                  padding: "0.5rem",
+                  textAlign: "center",
+                }}
+                onClick={() => {
+                  setSelectedWord(null);
+                  setExplanation(null);
+                }}
+              >
+                Back to Article Summary
+              </button>
+            </div>
+          ) : summaryLoading ? (
             <p className="text-muted">Generating AI summary...</p>
-          )}
-          {summary && (
+          ) : summary ? (
             <div className="summary-box">
               <h3>Article Summary</h3>
               <p>{summary}</p>
             </div>
-          )}
+          ) : null}
         </div>
       </aside>
 
@@ -124,7 +174,7 @@ function App() {
             <ambientLight intensity={0.5} />
             <pointLight position={[10, 10, 10]} />
 
-            <WordCloud words={words} />
+            <WordCloud words={words} onWordClick={handleWordClick} />
 
             <OrbitControls
               enablePan={true}
