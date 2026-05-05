@@ -41,8 +41,7 @@ pnpm run dev &
 FRONTEND_PID=$!
 cd ..
 
-# 5. Clean shutdown on Ctrl+C
-trap "echo -e '\nShutting down servers...'; kill $BACKEND_PID $FRONTEND_PID; exit" SIGINT SIGTERM
+# 5. Clean shutdown on Ctrl+C   
+trap "echo -e '\nShutting down servers...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true; exit" SIGINT SIGTERM
 
-# Wait for background processes to keep the terminal open
 wait
