@@ -6,3 +6,5 @@ trafilatura
 scikit-learn
 nltk
 pydantic
+google-genai
+python-dotenv

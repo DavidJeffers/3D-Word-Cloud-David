@@ -1,3 +1,5 @@
+import os
+from functools import lru_cache
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
@@ -5,6 +7,11 @@ import trafilatura
 import nltk
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
+from google import genai
+from dotenv import load_dotenv
+
+load_dotenv()
+client = genai.Client()
 
 nltk.download("stopwords", quiet=True)
 nltk.download("wordnet", quiet=True)
@@ -30,6 +37,9 @@ class WordWeight(BaseModel):
 class AnalyzeResponse(BaseModel):
     topics: list[WordWeight]
 
+class SummaryResponse(BaseModel):
+    summary: str
+
 
 def fetch_article_text(url: str) -> str:
     downloaded = trafilatura.fetch_url(url)
@@ -41,7 +51,20 @@ def fetch_article_text(url: str) -> str:
         raise HTTPException(status_code=422, detail="Could not extract meaningful text from the article.")
 
     return text
-
+ 
+@lru_cache(maxsize=100)
+def generate_cached_summary(url: str) -> str:
+    text = fetch_article_text(url)
+    prompt = f"Please provide a short, concise summary (about 3-4 sentences) of the following article:\n\n{text}"
+    
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini API Error: {str(e)}")
 
 def extract_keywords(text: str, top_n: int = 35) -> list[WordWeight]:
     lemmatizer = WordNetLemmatizer()
@@ -90,3 +113,8 @@ def analyze(body: AnalyzeRequest):
     text = fetch_article_text(str(body.url))
     keywords = extract_keywords(text, top_n=35)
     return AnalyzeResponse(topics=keywords)
+
+@app.post("/summary", response_model=SummaryResponse)
+def summarize(body: AnalyzeRequest):
+    summary_text = generate_cached_summary(str(body.url))
+    return SummaryResponse(summary=summary_text)
